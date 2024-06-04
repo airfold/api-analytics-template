@@ -1,0 +1,25 @@
+nodes:
+  - intervals:
+      # language=clickhouse
+      sql: |-
+        WITH
+            toStartOfMinute(now() - INTERVAL {{ time_range }} MINUTE) AS start_range,
+            toStartOfMinute(now() + INTERVAL 1 MINUTE) AS end_range
+        SELECT arrayJoin(arrayMap(x -> toDateTime(x), range(toUInt32(start_range), toUInt32(end_range), 60))) as ts
+  - endpoint:
+      # language=clickhouse
+      sql: |-
+        SELECT i.ts,
+               countMerge(request_count)        AS request_count,
+               countIfMerge(error_count)        AS error_count,
+               quantileMerge(0.5)(latency_p50)  AS latency_p50,
+               quantileMerge(0.95)(latency_p95) AS latency_p95
+        FROM intervals i
+            LEFT JOIN aggregate_1min ON i.ts = start
+        GROUP BY i.ts
+        ORDER BY i.ts
+params:
+  - name: time_range
+    type: int
+    default: 30
+publish: metrics

@@ -1,0 +1,11 @@
+cols:
+  id: String
+  timestamp: DateTime
+  status_code: UInt16
+  latency: UInt32
+description: |
+  The main events table. Monitored events are getting ingested here.
+settings:
+  engine: MergeTree()
+  order_by: (`status_code`, `timestamp`)
+  partition_by: toYYYYMM(`timestamp`)

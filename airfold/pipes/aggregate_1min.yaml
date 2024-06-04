@@ -1,0 +1,34 @@
+name: aggregate_1min_mv
+description: |
+  Aggregates all the metrics for a 1 min interval tumbling window.
+  Metrics are stored as an "aggregated state" that can be extracted by endpoints.
+nodes:
+  - aggregate:
+      # language=clickhouse
+      sql: |-
+        SELECT tumbleStart(timestamp, toIntervalMinute(1)) AS start,
+               tumbleEnd(timestamp, toIntervalMinute(1))   AS end,
+               status_code,
+               countState(id)                              AS request_count,
+               countIfState(status_code >= 400)            AS error_count,
+               quantileState(0.5)(latency)                 AS latency_p50,
+               quantileState(0.95)(latency)                AS latency_p95
+        FROM events
+        GROUP BY start, end, status_code
+to: aggregate_1min
+---
+name: aggregate_1min
+cols:
+  start: DateTime
+  end: DateTime
+  status_code: UInt16
+  request_count: AggregateFunction(count, String)
+  error_count: AggregateFunction(countIf, UInt8)
+  latency_p50: AggregateFunction(quantile(0.5), UInt32)
+  latency_p95: AggregateFunction(quantile(0.95), UInt32)
+description: |
+  Table for holding the intermediate aggregated state (1 min window).
+settings: |-
+  AggregatingMergeTree()
+  ORDER BY (status_code, start, end)
+  PARTITION BY toYYYYMM(start)
